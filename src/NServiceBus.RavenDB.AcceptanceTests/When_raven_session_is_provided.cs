@@ -18,7 +18,7 @@
             try
             {
                 documentStore = ConfigureEndpointRavenDBPersistence.GetDocumentStore();
-                session = documentStore.OpenAsyncSession();
+                session = documentStore.OpenAsyncSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide });
 
                 var context =
                     await Scenario.Define<RavenSessionTestContext>(testContext => { testContext.RavenSessionFromTest = session; })
@@ -64,7 +64,7 @@
                 EndpointSetup<DefaultServer>((config, context) =>
                 {
                     var scenarioContext = context.ScenarioContext as RavenSessionTestContext;
-                    config.UsePersistence<RavenDBPersistence>().UseSharedAsyncSession(_ => scenarioContext.RavenSessionFromTest);
+                    config.UsePersistence<RavenDBClusterWidePersistence>().UseSharedAsyncSession(_ => scenarioContext.RavenSessionFromTest);
                 });
             }
 

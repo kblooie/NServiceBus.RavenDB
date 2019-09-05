@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading.Tasks;
     using NServiceBus.Extensibility;
     using NServiceBus.Outbox;
@@ -9,6 +10,7 @@
     using NServiceBus.RavenDB.Outbox;
     using NUnit.Framework;
     using Raven.Client.Documents;
+    using Raven.Client.Documents.Operations.CompareExchange;
 
     [TestFixture]
     public class When_cleaning_outbox_messages : RavenDBPersistenceTestBase
@@ -26,8 +28,9 @@
         {
             var id = Guid.NewGuid().ToString("N");
             var context = new ContextBag();
+            var endpointName = "TestEndpoint";
 
-            var persister = new OutboxPersister(store, "TestEndpoint", CreateTestSessionOpener());
+            var persister = new OutboxPersister(store, endpointName, CreateTestSessionOpener());
 
             using (var transaction = await persister.BeginTransaction(context))
             {
@@ -51,21 +54,16 @@
 
             await persister.SetAsDispatched(id, context);
             await Task.Delay(TimeSpan.FromSeconds(1)); //Need to wait for dispatch logic to finish
-
-            //WaitForUserToContinueTheTest(store);
-            WaitForIndexing();
-
-            var cleaner = new OutboxRecordsCleaner(store);
+            
+            var cleaner = new OutboxRecordsCleaner(store, endpointName);
 
             await cleaner.RemoveEntriesOlderThan(DateTime.UtcNow.AddMinutes(1));
 
-            using (var s = store.OpenAsyncSession())
-            {
-                var result = await s.Query<OutboxRecord>().ToListAsync();
+            var result = (await store.Operations
+                .SendAsync(new GetCompareExchangeValuesOperation<OutboxRecord>($"Outbox/{endpointName}/"))).Values;
 
-                Assert.AreEqual(1, result.Count);
-                Assert.AreEqual("NotDispatched", result[0].MessageId);
-            }
+            Assert.AreEqual(1, result.Count);
+            Assert.AreEqual("NotDispatched", result.First().Value.MessageId);
         }
     }
 }

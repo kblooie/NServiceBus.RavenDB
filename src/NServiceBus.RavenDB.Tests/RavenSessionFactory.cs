@@ -19,8 +19,7 @@
 
         IAsyncDocumentSession OpenAsyncSession()
         {
-            var documentSession = store.OpenAsyncSession();
-            documentSession.Advanced.UseOptimisticConcurrency = true;
+            var documentSession = store.OpenAsyncSession(new SessionOptions{ TransactionMode = TransactionMode.ClusterWide });
             return documentSession;
         }
 

@@ -16,7 +16,7 @@
         /// </summary>
         /// <param name="cfg"></param>
         /// <param name="documentStore">The document store to use</param>
-        public static PersistenceExtensions<RavenDBPersistence> UseDocumentStoreForGatewayDeduplication(this PersistenceExtensions<RavenDBPersistence> cfg, IDocumentStore documentStore)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseDocumentStoreForGatewayDeduplication(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, IDocumentStore documentStore)
         {
             DocumentStoreManager.SetDocumentStore<StorageType.GatewayDeduplication>(cfg.GetSettings(), documentStore);
             return cfg;
@@ -27,7 +27,7 @@
         /// </summary>
         /// <param name="cfg"></param>
         /// <param name="storeCreator">A Func that will create the document store on NServiceBus initialization.</param>
-        public static PersistenceExtensions<RavenDBPersistence> UseDocumentStoreForGatewayDeduplication(this PersistenceExtensions<RavenDBPersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseDocumentStoreForGatewayDeduplication(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
         {
             DocumentStoreManager.SetDocumentStore<StorageType.GatewayDeduplication>(cfg.GetSettings(), storeCreator);
             return cfg;

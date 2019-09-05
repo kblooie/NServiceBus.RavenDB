@@ -21,7 +21,7 @@
         /// <param name="cfg"></param>
         /// <param name="documentStore">Document store managed by me as a user</param>
         /// <returns></returns>
-        public static PersistenceExtensions<RavenDBPersistence> SetDefaultDocumentStore(this PersistenceExtensions<RavenDBPersistence> cfg, IDocumentStore documentStore)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> SetDefaultDocumentStore(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, IDocumentStore documentStore)
         {
             DocumentStoreManager.SetDefaultStore(cfg.GetSettings(), documentStore);
             return cfg;
@@ -33,7 +33,7 @@
         /// <param name="cfg"></param>
         /// <param name="storeCreator">A Func that will create the document store on NServiceBus initialization.</param>
         /// <returns></returns>
-        public static PersistenceExtensions<RavenDBPersistence> SetDefaultDocumentStore(this PersistenceExtensions<RavenDBPersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> SetDefaultDocumentStore(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
         {
             DocumentStoreManager.SetDefaultStore(cfg.GetSettings(), storeCreator);
             return cfg;
@@ -49,7 +49,7 @@
             Message = "ConnectionParameters is no longer supported. Use an alternate overload and supply the fully configured IDocumentStore.",
             RemoveInVersion = "7.0.0",
             TreatAsErrorFromVersion = "6.0.0")]
-        public static PersistenceExtensions<RavenDBPersistence> SetDefaultDocumentStore(this PersistenceExtensions<RavenDBPersistence> cfg, ConnectionParameters connectionParameters)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> SetDefaultDocumentStore(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, ConnectionParameters connectionParameters)
         {
             throw new NotImplementedException();
         }
@@ -61,7 +61,7 @@
         /// <param name="cfg"></param>
         /// <param name="getAsyncSessionFunc">A func returning the async session to be used</param>
         /// <returns></returns>
-        public static PersistenceExtensions<RavenDBPersistence> UseSharedAsyncSession(this PersistenceExtensions<RavenDBPersistence> cfg, Func<IDictionary<string, string>, IAsyncDocumentSession> getAsyncSessionFunc)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseSharedAsyncSession(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, Func<IDictionary<string, string>, IAsyncDocumentSession> getAsyncSessionFunc)
         {
             if (getAsyncSessionFunc == null)
             {
@@ -80,7 +80,7 @@
         ///     message.
         /// </param>
         /// <returns>The configuration object.</returns>
-        public static PersistenceExtensions<RavenDBPersistence> SetMessageToDatabaseMappingConvention(this PersistenceExtensions<RavenDBPersistence> cfg, Func<IDictionary<string,string>, string> convention)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> SetMessageToDatabaseMappingConvention(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, Func<IDictionary<string,string>, string> convention)
         {
             cfg.GetSettings().Set("RavenDB.SetMessageToDatabaseMappingConvention", convention);
             return cfg;
@@ -91,7 +91,7 @@
         /// </summary>
         /// <param name="cfg"></param>
         /// <returns></returns>
-        public static PersistenceExtensions<RavenDBPersistence> DoNotSetupDatabasePermissions(this PersistenceExtensions<RavenDBPersistence> cfg)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> DoNotSetupDatabasePermissions(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg)
         {
             cfg.GetSettings().Set("RavenDB.DoNotSetupPermissions", true);
             return cfg;

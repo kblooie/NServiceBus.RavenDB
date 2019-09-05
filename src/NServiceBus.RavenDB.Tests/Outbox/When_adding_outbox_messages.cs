@@ -10,8 +10,8 @@ namespace NServiceBus.RavenDB.Tests.Outbox
     using NServiceBus.RavenDB.Outbox;
     using NUnit.Framework;
     using Raven.Client.Documents;
+    using Raven.Client.Documents.Session;
     using Raven.Client.Exceptions;
-    using Raven.Client.Exceptions.Documents.Session;
 
     [TestFixture]
     public class When_adding_outbox_messages : RavenDBPersistenceTestBase
@@ -30,7 +30,7 @@ namespace NServiceBus.RavenDB.Tests.Outbox
         {
             var persister = new OutboxPersister(store, testEndpointName, CreateTestSessionOpener());
 
-            var exception = await Catch<NonUniqueObjectException>(async () =>
+            var exception = await Catch<ArgumentException>(async () =>
             {
                 using (var transaction = await persister.BeginTransaction(new ContextBag()))
                 {
@@ -97,10 +97,10 @@ namespace NServiceBus.RavenDB.Tests.Outbox
         {
             var persister = new OutboxPersister(store, testEndpointName, CreateTestSessionOpener());
 
-            var id = Guid.NewGuid().ToString("N");
-            var message = new OutboxMessage(id, new []
+            var messageId = Guid.NewGuid().ToString("N");
+            var message = new OutboxMessage(messageId, new[]
             {
-                new TransportOperation(id, new Dictionary<string, string>(), new byte[1024*5], new Dictionary<string, string>())
+                new TransportOperation(messageId, new Dictionary<string, string>(), new byte[1024*5], new Dictionary<string, string>())
             });
 
             using (var transaction = await persister.BeginTransaction(new ContextBag()))
@@ -109,17 +109,15 @@ namespace NServiceBus.RavenDB.Tests.Outbox
 
                 await transaction.Commit();
             }
-            await persister.SetAsDispatched(id, new ContextBag());
+            await persister.SetAsDispatched(messageId, new ContextBag());
 
-            WaitForIndexing();
-
-            using (var s = store.OpenAsyncSession())
+            var outboxRecordId = $"Outbox/TestEndpoint/{messageId}";
+            using (var s = store.OpenAsyncSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide }))
             {
-                var result = await s.Query<OutboxRecord>()
-                    .SingleOrDefaultAsync(o => o.MessageId == id);
+                var result = await s.Advanced.ClusterTransaction.GetCompareExchangeValueAsync<OutboxRecord>(outboxRecordId);
 
-                Assert.NotNull(result);
-                Assert.True(result.Dispatched);
+                Assert.NotNull(result?.Value);
+                Assert.True(result?.Value.Dispatched);
             }
         }
 
@@ -148,8 +146,8 @@ namespace NServiceBus.RavenDB.Tests.Outbox
                         }
                     }
                 };
-                var fullDocumentId = "Outbox/TestEndpoint/" + messageId;
-                await session.StoreAsync(newRecord, fullDocumentId);
+                var fullDocumentId = $"Outbox/TestEndpoint/{messageId}";
+                session.Advanced.ClusterTransaction.CreateCompareExchangeValue(fullDocumentId, newRecord);
 
                 await session.SaveChangesAsync();
             }
@@ -168,13 +166,15 @@ namespace NServiceBus.RavenDB.Tests.Outbox
             var messageId = Guid.NewGuid().ToString();
 
             //manually store an OutboxRecord to control the OutboxRecordId format
+            var outboxId = $"Outbox/TestEndpoint/{messageId}";
+
             using (var session = OpenAsyncSession())
             {
-                await session.StoreAsync(new OutboxRecord
+                session.Advanced.ClusterTransaction.CreateCompareExchangeValue(outboxId, new OutboxRecord
                 {
                     MessageId = messageId,
                     Dispatched = false,
-                    TransportOperations = new []
+                    TransportOperations = new[]
                     {
                         new OutboxRecord.OutboxOperation
                         {
@@ -184,7 +184,7 @@ namespace NServiceBus.RavenDB.Tests.Outbox
                             Options = new Dictionary<string, string>()
                         }
                     }
-                }, "Outbox/TestEndpoint/" + messageId);
+                });
 
                 await session.SaveChangesAsync();
             }
@@ -193,10 +193,10 @@ namespace NServiceBus.RavenDB.Tests.Outbox
 
             using (var session = OpenAsyncSession())
             {
-                var result = await session.LoadAsync<OutboxRecord>("Outbox/TestEndpoint/" + messageId);
+                var result = await session.Advanced.ClusterTransaction.GetCompareExchangeValueAsync<OutboxRecord>(outboxId);
 
-                Assert.NotNull(result);
-                Assert.True(result.Dispatched);
+                Assert.NotNull(result?.Value);
+                Assert.True(result.Value.Dispatched);
             }
         }
 
@@ -209,7 +209,7 @@ namespace NServiceBus.RavenDB.Tests.Outbox
             var messageId = $@"{guid}\12345";
             var emptyDictionary = new Dictionary<string, string>();
             var operation = new TransportOperation("test", emptyDictionary, new byte[0], emptyDictionary);
-            var transportOperations = new [] { operation };
+            var transportOperations = new[] { operation };
 
             using (var transaction = await persister.BeginTransaction(new ContextBag()))
             {

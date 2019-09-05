@@ -1,32 +1,52 @@
 ﻿namespace NServiceBus.Persistence.RavenDB
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
     using NServiceBus.RavenDB.Outbox;
     using Raven.Client.Documents;
-    using Raven.Client.Documents.Operations;
-    using Raven.Client.Documents.Queries;
+    using Raven.Client.Documents.Operations.CompareExchange;
 
     class OutboxRecordsCleaner
     {
-        public OutboxRecordsCleaner(IDocumentStore documentStore)
+        public OutboxRecordsCleaner(IDocumentStore documentStore, string endpointName)
         {
             this.documentStore = documentStore;
+            this.endpointName = endpointName;
         }
 
-        public async Task RemoveEntriesOlderThan(DateTime dateTime, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task RemoveEntriesOlderThan(DateTime dateTime, CancellationToken cancellationToken = default)
         {
-            var options = new QueryOperationOptions { AllowStale = true };
-            var deleteOp = new DeleteByQueryOperation<OutboxRecord, OutboxRecordsIndex>(record => record.Dispatched && record.DispatchedAt <= dateTime, options);
+            var skip = 0;
+            const int pageSize = 1024;
 
-            var operation = await documentStore.Operations.SendAsync(deleteOp, token: cancellationToken).ConfigureAwait(false);
+            do
+            {
+                var records = await documentStore.Operations
+                    .SendAsync(new GetCompareExchangeValuesOperation<OutboxRecord>($"Outbox/{endpointName}/", skip, pageSize), token: cancellationToken).ConfigureAwait(false);
+                
+                foreach (var recordExchangeValue in records.Values)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
 
-            // This is going to execute multiple "status check" requests to Raven, but this does
-            // not currently support CancellationToken.
-            await operation.WaitForCompletionAsync().ConfigureAwait(false);
+                    var outboxRecord = recordExchangeValue.Value;
+                    if (outboxRecord.Dispatched && outboxRecord.DispatchedAt <= dateTime)
+                    {
+                        //We won't check to see if the result is successful, as this is simply a cleanup routine
+                        await documentStore.Operations
+                            .SendAsync(new DeleteCompareExchangeValueOperation<OutboxRecord>(recordExchangeValue.Key, recordExchangeValue.Index)).ConfigureAwait(false);
+                    }
+                }
+
+                if (records.Count < pageSize)
+                    break;
+
+                skip += records.Count;
+            } while (true);
         }
 
         IDocumentStore documentStore;
+        readonly string endpointName;
     }
 }

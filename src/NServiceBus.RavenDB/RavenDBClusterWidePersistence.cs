@@ -7,13 +7,13 @@
     /// <summary>
     ///     Specifies the capabilities of the ravendb suite of storages
     /// </summary>
-    public class RavenDBPersistence : PersistenceDefinition
+    public class RavenDBClusterWidePersistence : PersistenceDefinition
     {
 
         /// <summary>
         ///     Defines the capabilities
         /// </summary>
-        public RavenDBPersistence()
+        public RavenDBClusterWidePersistence()
         {
             Defaults(s =>
             {

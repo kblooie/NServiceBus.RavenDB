@@ -13,7 +13,7 @@
             databaseName = documentStore.Database;
 
 
-            configuration.UsePersistence<RavenDBPersistence, StorageType.GatewayDeduplication>()
+            configuration.UsePersistence<RavenDBClusterWidePersistence, StorageType.GatewayDeduplication>()
                 .DoNotSetupDatabasePermissions()
                 .SetDefaultDocumentStore(documentStore);
 

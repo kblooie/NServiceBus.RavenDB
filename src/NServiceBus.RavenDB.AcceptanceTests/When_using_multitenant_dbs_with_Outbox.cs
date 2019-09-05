@@ -115,7 +115,7 @@
             public DocumentStore DefaultStore { get; set; }
             public DocumentStore Tenant1 { get; set; }
             public DocumentStore Tenant2 { get; set; }
-            public PersistenceExtensions<RavenDBPersistence> PersistenceExtensions { get; set; }
+            public PersistenceExtensions<RavenDBClusterWidePersistence> PersistenceExtensions { get; set; }
         }
 
         public class MultiTenantEndpoint : EndpointConfigurationBuilder

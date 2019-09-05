@@ -19,15 +19,15 @@
             var store = DocumentStoreManager.GetDocumentStore<StorageType.Outbox>(context.Settings);
             var endpointName = context.Settings.EndpointName();
 
-            Helpers.SafelyCreateIndex(store, new OutboxRecordsIndex());
+            //Helpers.SafelyCreateIndex(store, new OutboxRecordsIndex());
 
             context.Container.ConfigureComponent(b => new OutboxPersister(store, endpointName, b.Build<IOpenRavenSessionsInPipeline>()), DependencyLifecycle.InstancePerCall);
 
-            context.Container.ConfigureComponent(b => new OutboxRecordsCleaner(store), DependencyLifecycle.InstancePerCall);
+            //context.Container.ConfigureComponent(b => new OutboxRecordsCleaner(store, endpointName), DependencyLifecycle.InstancePerCall);
 
-            context.Container.ConfigureComponent<OutboxCleaner>(DependencyLifecycle.InstancePerCall);
+            //context.Container.ConfigureComponent<OutboxCleaner>(DependencyLifecycle.InstancePerCall);
 
-            context.RegisterStartupTask(builder => builder.Build<OutboxCleaner>());
+            //context.RegisterStartupTask(builder => builder.Build<OutboxCleaner>());
         }
 
         class OutboxCleaner : FeatureStartupTask

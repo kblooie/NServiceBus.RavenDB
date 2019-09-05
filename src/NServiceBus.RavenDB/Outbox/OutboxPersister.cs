@@ -24,14 +24,14 @@
             OutboxRecord result;
             using (var session = GetSession(options))
             {
-                // We use Load operation and not queries to avoid stale results
                 var outboxDocId = GetOutboxRecordId(messageId);
-                result = await session.LoadAsync<OutboxRecord>(outboxDocId).ConfigureAwait(false);
+                var compX = await session.Advanced.ClusterTransaction.GetCompareExchangeValueAsync<OutboxRecord>(outboxDocId).ConfigureAwait(false);
+                result = compX?.Value;
             }
 
             if (result == null)
             {
-                return default(OutboxMessage);
+                return default;
             }
 
             if (result.Dispatched || result.TransportOperations.Length == 0)
@@ -54,8 +54,6 @@
         public Task<OutboxTransaction> BeginTransaction(ContextBag context)
         {
             var session = GetSession(context);
-
-            session.Advanced.UseOptimisticConcurrency = true;
 
             context.Set(session);
             var transaction = new RavenDBOutboxTransaction(session);
@@ -80,22 +78,26 @@
                 };
                 index++;
             }
-
-            return session.StoreAsync(new OutboxRecord
+            
+            var outboxDocId = GetOutboxRecordId(message.MessageId);
+            session.Advanced.ClusterTransaction.CreateCompareExchangeValue(outboxDocId, new OutboxRecord
             {
                 MessageId = message.MessageId,
                 Dispatched = false,
                 TransportOperations = operations
-            }, GetOutboxRecordId(message.MessageId));
+            });
+
+            return Task.CompletedTask;
         }
 
         public async Task SetAsDispatched(string messageId, ContextBag options)
         {
             using (var session = GetSession(options))
             {
-                session.Advanced.UseOptimisticConcurrency = true;
-
-                var outboxMessage = await session.LoadAsync<OutboxRecord>(GetOutboxRecordId(messageId)).ConfigureAwait(false);
+                var outboxDocId = GetOutboxRecordId(messageId);
+                var compX = await session.Advanced.ClusterTransaction.GetCompareExchangeValueAsync<OutboxRecord>(outboxDocId).ConfigureAwait(false);
+                
+                var outboxMessage = compX?.Value;
                 if (outboxMessage == null || outboxMessage.Dispatched)
                 {
                     return;
@@ -105,19 +107,21 @@
                 outboxMessage.DispatchedAt = DateTime.UtcNow;
                 outboxMessage.TransportOperations = emptyOutboxOperations;
 
+                session.Advanced.ClusterTransaction.UpdateCompareExchangeValue(compX);
+
                 await session.SaveChangesAsync().ConfigureAwait(false);
             }
         }
 
         IAsyncDocumentSession GetSession(ContextBag context)
         {
-            IncomingMessage message;
-            if (context.TryGet(out message))
-            {
-                return sessionCreator.OpenSession(message.Headers);
-            }
+            var session = context.TryGet(out IncomingMessage message) 
+                ? sessionCreator.OpenSession(message.Headers) 
+                : documentStore.OpenAsyncSession();
 
-            return documentStore.OpenAsyncSession();
+            session.Advanced.SetTransactionMode(TransactionMode.ClusterWide);
+
+            return session;
         }
 
         string GetOutboxRecordId(string messageId) => $"Outbox/{endpointName}/{messageId.Replace('\\', '_')}";

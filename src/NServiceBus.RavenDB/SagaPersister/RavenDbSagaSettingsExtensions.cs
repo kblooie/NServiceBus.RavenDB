@@ -18,7 +18,7 @@
         /// </summary>
         /// <param name="cfg">Object to attach to</param>
         /// <param name="documentStore">The document store to be used</param>
-        public static PersistenceExtensions<RavenDBPersistence> UseDocumentStoreForSagas(this PersistenceExtensions<RavenDBPersistence> cfg, IDocumentStore documentStore)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseDocumentStoreForSagas(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, IDocumentStore documentStore)
         {
             DocumentStoreManager.SetDocumentStore<StorageType.Sagas>(cfg.GetSettings(), documentStore);
             return cfg;
@@ -29,7 +29,7 @@
         /// </summary>
         /// <param name="cfg">Object to attach to</param>
         /// <param name="storeCreator">A Func that will create the document store on NServiceBus initialization.</param>
-        public static PersistenceExtensions<RavenDBPersistence> UseDocumentStoreForSagas(this PersistenceExtensions<RavenDBPersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseDocumentStoreForSagas(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
         {
             DocumentStoreManager.SetDocumentStore<StorageType.Sagas>(cfg.GetSettings(), storeCreator);
             return cfg;

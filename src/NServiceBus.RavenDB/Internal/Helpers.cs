@@ -8,7 +8,7 @@
 
     class Helpers
     {
-        static readonly ILog Logger = LogManager.GetLogger(typeof(RavenDBPersistence));
+        static readonly ILog Logger = LogManager.GetLogger(typeof(RavenDBClusterWidePersistence));
 
         static void LogRavenConnectionFailure(Exception exception, IDocumentStore store)
         {

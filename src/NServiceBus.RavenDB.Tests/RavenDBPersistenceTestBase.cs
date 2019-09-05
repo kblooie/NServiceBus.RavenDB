@@ -35,8 +35,8 @@
 
         protected internal IAsyncDocumentSession OpenAsyncSession()
         {
-            var documentSession = store.OpenAsyncSession();
-            documentSession.Advanced.UseOptimisticConcurrency = true;
+            var documentSession = store.OpenAsyncSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide });
+
             sessions.Add(documentSession);
             return documentSession;
         }
@@ -87,7 +87,7 @@
 
             public IAsyncDocumentSession OpenSession(IDictionary<string, string> messageHeaders)
             {
-                return store.OpenAsyncSession();
+                return store.OpenAsyncSession(new SessionOptions { TransactionMode = TransactionMode.ClusterWide });
             }
         }
     }

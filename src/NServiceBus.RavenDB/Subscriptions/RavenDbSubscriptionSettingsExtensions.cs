@@ -19,7 +19,7 @@
         /// </summary>
         /// <param name="cfg"></param>
         /// <param name="documentStore">The document store to use</param>
-        public static PersistenceExtensions<RavenDBPersistence> UseDocumentStoreForSubscriptions(this PersistenceExtensions<RavenDBPersistence> cfg, IDocumentStore documentStore)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseDocumentStoreForSubscriptions(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, IDocumentStore documentStore)
         {
             DocumentStoreManager.SetDocumentStore<StorageType.Subscriptions>(cfg.GetSettings(), documentStore);
             return cfg;
@@ -30,7 +30,7 @@
         /// </summary>
         /// <param name="cfg"></param>
         /// <param name="storeCreator">A Func that will create the document store on NServiceBus initialization.</param>
-        public static PersistenceExtensions<RavenDBPersistence> UseDocumentStoreForSubscriptions(this PersistenceExtensions<RavenDBPersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseDocumentStoreForSubscriptions(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, Func<ReadOnlySettings, IDocumentStore> storeCreator)
         {
             DocumentStoreManager.SetDocumentStore<StorageType.Subscriptions>(cfg.GetSettings(), storeCreator);
             return cfg;
@@ -42,7 +42,7 @@
         /// Although slower, using this option ensures that the subscription storage is checked for changes with every published message.
         /// </summary>
         /// <param name="cfg"></param>
-        public static PersistenceExtensions<RavenDBPersistence> DoNotCacheSubscriptions(this PersistenceExtensions<RavenDBPersistence> cfg)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> DoNotCacheSubscriptions(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg)
         {
             cfg.GetSettings().Set(DoNotAggressivelyCacheSubscriptionsSettingsKey, true);
             return cfg;
@@ -56,7 +56,7 @@
         /// <param name="cfg"></param>
         /// <param name="aggressiveCacheDuration"></param>
         /// <returns></returns>
-        public static PersistenceExtensions<RavenDBPersistence> CacheSubscriptionsFor(this PersistenceExtensions<RavenDBPersistence> cfg, TimeSpan aggressiveCacheDuration)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> CacheSubscriptionsFor(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, TimeSpan aggressiveCacheDuration)
         {
             cfg.GetSettings().Set(AggressiveCacheDurationSettingsKey, aggressiveCacheDuration);
             return cfg;
@@ -73,7 +73,7 @@
             Message = "Subscriptions must be converted to the new format.",
             TreatAsErrorFromVersion = "6.0.0",
             RemoveInVersion = "7.0.0")]
-        public static PersistenceExtensions<RavenDBPersistence> DisableSubscriptionVersioning(this PersistenceExtensions<RavenDBPersistence> cfg)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> DisableSubscriptionVersioning(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg)
         {
             throw new NotImplementedException("Subscriptions must be converted to the new format.");
         }
@@ -90,7 +90,7 @@
             Message = "Subscriptions must be converted to the new format.",
             TreatAsErrorFromVersion = "6.0.0",
             RemoveInVersion = "7.0.0")]
-        public static PersistenceExtensions<RavenDBPersistence> UseLegacyVersionedSubscriptions(this PersistenceExtensions<RavenDBPersistence> cfg)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> UseLegacyVersionedSubscriptions(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg)
         {
             throw new NotImplementedException("Subscriptions must be converted to the new format.");
         }

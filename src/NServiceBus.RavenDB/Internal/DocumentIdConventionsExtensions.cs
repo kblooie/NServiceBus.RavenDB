@@ -16,7 +16,7 @@
             Message = "NServiceBus will now use whatever document conventions are configured on the DocumentStore. It this method was used before, it can safely be removed as it is now the default.",
             TreatAsErrorFromVersion = "6.0.0",
             RemoveInVersion = "7.0.0")]
-        public static PersistenceExtensions<RavenDBPersistence> DoNotUseLegacyConventionsWhichIsOnlySafeForNewEndpoints(this PersistenceExtensions<RavenDBPersistence> config)
+        public static PersistenceExtensions<RavenDBClusterWidePersistence> DoNotUseLegacyConventionsWhichIsOnlySafeForNewEndpoints(this PersistenceExtensions<RavenDBClusterWidePersistence> config)
         {
             throw new NotImplementedException();
         }

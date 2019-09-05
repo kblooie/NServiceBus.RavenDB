@@ -5,46 +5,55 @@ namespace NServiceBus.Persistence.RavenDB
     using NServiceBus.Extensibility;
     using NServiceBus.RavenDB.Persistence.SagaPersister;
     using NServiceBus.Sagas;
-    using Raven.Client.Documents.Commands.Batches;
+    using Raven.Client.Documents.Operations.CompareExchange;
     using Raven.Client.Documents.Session;
 
     class SagaPersister : ISagaPersister
     {
-        public async Task Save(IContainSagaData sagaData, SagaCorrelationProperty correlationProperty, SynchronizedStorageSession session, ContextBag context)
+        public Task Save(IContainSagaData sagaData, SagaCorrelationProperty correlationProperty, SynchronizedStorageSession session, ContextBag context)
         {
             var documentSession = session.RavenSession();
 
             if (sagaData == null)
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            var container = new SagaDataContainer
-            {
-                Id = DocumentIdForSagaData(documentSession, sagaData),
-                Data = sagaData
-            };
+            var docId = DocumentIdForSagaData(documentSession, sagaData);
+            var identityDocId = correlationProperty != null
+                ? SagaUniqueIdentity.FormatId(sagaData.GetType(), correlationProperty.Name, correlationProperty.Value)
+                : null;
 
-            if (correlationProperty == null)
+            documentSession.Advanced.ClusterTransaction.CreateCompareExchangeValue(docId, new SagaDataContainer
             {
-                return;
+                Id = docId,
+                Data = sagaData,
+                IdentityDocId = identityDocId
+            });
+
+            if (correlationProperty != null)
+            {
+                documentSession.Advanced.ClusterTransaction.CreateCompareExchangeValue(identityDocId, new SagaUniqueIdentity
+                {
+                    Id = identityDocId,
+                    SagaId = sagaData.Id,
+                    UniqueValue = correlationProperty.Value,
+                    SagaDocId = docId
+                });
             }
 
-            container.IdentityDocId = SagaUniqueIdentity.FormatId(sagaData.GetType(), correlationProperty.Name, correlationProperty.Value);
-
-            await documentSession.StoreAsync(container, string.Empty, container.Id).ConfigureAwait(false);
-            await documentSession.StoreAsync(new SagaUniqueIdentity
-            {
-                Id = container.IdentityDocId,
-                SagaId = sagaData.Id,
-                UniqueValue = correlationProperty.Value,
-                SagaDocId = container.Id
-            }, changeVector: string.Empty, id: container.IdentityDocId).ConfigureAwait(false);
+            return Task.CompletedTask;
         }
 
         public Task Update(IContainSagaData sagaData, SynchronizedStorageSession session, ContextBag context)
         {
-            //no-op since the dirty tracking will handle the update for us
+            var documentSession = session.RavenSession();
+            var docId = DocumentIdForSagaData(documentSession, sagaData);
+
+            var compareExchange = context.Get<CompareExchangeValue<SagaDataContainer>>($"{SagaCompareExchangeContextKeyPrefix}{docId}");
+            compareExchange.Value.Data = sagaData;
+            documentSession.Advanced.ClusterTransaction.UpdateCompareExchangeValue(compareExchange);
+
             return Task.CompletedTask;
         }
 
@@ -53,14 +62,17 @@ namespace NServiceBus.Persistence.RavenDB
         {
             var documentSession = session.RavenSession();
             var docId = DocumentIdForSagaData(documentSession, typeof(T), sagaId);
-            var container = await documentSession.LoadAsync<SagaDataContainer>(docId).ConfigureAwait(false);
+
+            var compX = await documentSession.Advanced.ClusterTransaction.GetCompareExchangeValueAsync<SagaDataContainer>(docId).ConfigureAwait(false);
+
+            var container = compX?.Value;
 
             if (container == null)
             {
-                return default(T);
+                return default;
             }
 
-            context.Set($"{SagaContainerContextKeyPrefix}{container.Data.Id}", container);
+            context.Set($"{SagaCompareExchangeContextKeyPrefix}{container.Data.Id}", compX);
 
             return container.Data as T;
         }
@@ -72,42 +84,22 @@ namespace NServiceBus.Persistence.RavenDB
 
             var lookupId = SagaUniqueIdentity.FormatId(typeof(T), propertyName, propertyValue);
 
-            var lookup = await documentSession
-                .Include("SagaDocId") //tell raven to pull the saga doc as well to save us a round-trip
-                .LoadAsync<SagaUniqueIdentity>(lookupId)
-                .ConfigureAwait(false);
+            var lookup = await GetSagaUniqueIdentityCompareExchangeValue(documentSession, lookupId).ConfigureAwait(false);
 
-            if (lookup != null)
-            {
-                documentSession.Advanced.Evict(lookup);
+            if (lookup == null) return default;
 
-                // If we have a saga id we can just load it, should have been included in the round-trip already
-                var container = await documentSession.LoadAsync<SagaDataContainer>(lookup.SagaDocId).ConfigureAwait(false);
-
-                if (container != null)
-                {
-                    if (container.IdentityDocId == null)
-                    {
-                        container.IdentityDocId = lookupId;
-                    }
-                    context.Set($"{SagaContainerContextKeyPrefix}{container.Data.Id}", container);
-                    return (T)container.Data;
-                }
-            }
-
-            return default(T);
+            return await Get<T>(lookup.Value.SagaId, session, context).ConfigureAwait(false);
         }
 
-        public Task Complete(IContainSagaData sagaData, SynchronizedStorageSession session, ContextBag context)
+        public async Task Complete(IContainSagaData sagaData, SynchronizedStorageSession session, ContextBag context)
         {
             var documentSession = session.RavenSession();
-            var container = context.Get<SagaDataContainer>($"{SagaContainerContextKeyPrefix}{sagaData.Id}");
-            documentSession.Delete(container);
-            if (container.IdentityDocId != null)
-            {
-                documentSession.Advanced.Defer(new DeleteCommandData(container.IdentityDocId, null));
-            }
-            return Task.CompletedTask;
+
+            var compareExchangeValue = context.Get<CompareExchangeValue<SagaDataContainer>>($"{SagaCompareExchangeContextKeyPrefix}{sagaData.Id}");
+            documentSession.Advanced.ClusterTransaction.DeleteCompareExchangeValue(compareExchangeValue);
+
+            var lookup = await GetSagaUniqueIdentityCompareExchangeValue(documentSession, compareExchangeValue.Value.IdentityDocId).ConfigureAwait(false);
+            documentSession.Advanced.ClusterTransaction.DeleteCompareExchangeValue(lookup);
         }
 
         static string DocumentIdForSagaData(IAsyncDocumentSession documentSession, IContainSagaData sagaData)
@@ -122,6 +114,11 @@ namespace NServiceBus.Persistence.RavenDB
             return $"{collectionName}{conventions.IdentityPartsSeparator}{sagaId}";
         }
 
-        const string SagaContainerContextKeyPrefix = "SagaDataContainer:";
+        static async Task<CompareExchangeValue<SagaUniqueIdentity>> GetSagaUniqueIdentityCompareExchangeValue(IAsyncDocumentSession documentSession, string lookupId)
+        {
+            return await documentSession.Advanced.ClusterTransaction.GetCompareExchangeValueAsync<SagaUniqueIdentity>(lookupId).ConfigureAwait(false);
+        }
+
+        const string SagaCompareExchangeContextKeyPrefix = "SagaCompareExchange:";
     }
 }

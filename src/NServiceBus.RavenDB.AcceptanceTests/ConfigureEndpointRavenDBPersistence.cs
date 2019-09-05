@@ -21,7 +21,7 @@ public class ConfigureEndpointRavenDBPersistence : IConfigureEndpointTestExecuti
 
         configuration.GetSettings().Set(DefaultDocumentStoreKey, documentStore);
 
-        var persistenceExtensions = configuration.UsePersistence<RavenDBPersistence>()
+        var persistenceExtensions = configuration.UsePersistence<RavenDBClusterWidePersistence>()
             .DoNotCacheSubscriptions()
             .DoNotSetupDatabasePermissions()
             .SetDefaultDocumentStore(documentStore);
@@ -112,15 +112,15 @@ public class ConfigureEndpointRavenDBPersistence : IConfigureEndpointTestExecuti
         return settings.Get<DocumentStore>(DefaultDocumentStoreKey);
     }
 
-    public static PersistenceExtensions<RavenDBPersistence> GetDefaultPersistenceExtensions(ReadOnlySettings settings)
+    public static PersistenceExtensions<RavenDBClusterWidePersistence> GetDefaultPersistenceExtensions(ReadOnlySettings settings)
     {
-        return settings.Get<PersistenceExtensions<RavenDBPersistence>>(DefaultPersistenceExtensionsKey);
+        return settings.Get<PersistenceExtensions<RavenDBClusterWidePersistence>>(DefaultPersistenceExtensionsKey);
     }
 }
 
 public static class TestConfigurationExtensions
 {
-    public static PersistenceExtensions<RavenDBPersistence> ResetDocumentStoreSettings(this PersistenceExtensions<RavenDBPersistence> cfg, out TestDatabaseInfo dbInfo)
+    public static PersistenceExtensions<RavenDBClusterWidePersistence> ResetDocumentStoreSettings(this PersistenceExtensions<RavenDBClusterWidePersistence> cfg, out TestDatabaseInfo dbInfo)
     {
         var settings = cfg.GetSettings();
         var docStore = ConfigureEndpointRavenDBPersistence.GetDefaultDocumentStore(settings);
