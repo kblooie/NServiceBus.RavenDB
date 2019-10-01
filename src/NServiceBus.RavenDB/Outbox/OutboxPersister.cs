@@ -22,7 +22,7 @@
         public async Task<OutboxMessage> Get(string messageId, ContextBag options)
         {
             OutboxRecord result;
-            using (var session = GetSession(options))
+            using (var session = await GetSession(options).ConfigureAwait(false))
             {
                 // We use Load operation and not queries to avoid stale results
                 var outboxDocId = GetOutboxRecordId(messageId);
@@ -51,15 +51,15 @@
         }
 
 
-        public Task<OutboxTransaction> BeginTransaction(ContextBag context)
+        public async Task<OutboxTransaction> BeginTransaction(ContextBag context)
         {
-            var session = GetSession(context);
+            var session = await GetSession(context).ConfigureAwait(false);
 
             session.Advanced.UseOptimisticConcurrency = true;
 
             context.Set(session);
             var transaction = new RavenDBOutboxTransaction(session);
-            return Task.FromResult<OutboxTransaction>(transaction);
+            return transaction;
         }
 
         public Task Store(OutboxMessage message, OutboxTransaction transaction, ContextBag context)
@@ -91,7 +91,7 @@
 
         public async Task SetAsDispatched(string messageId, ContextBag options)
         {
-            using (var session = GetSession(options))
+            using (var session = await GetSession(options).ConfigureAwait(false))
             {
                 session.Advanced.UseOptimisticConcurrency = true;
 
@@ -109,12 +109,12 @@
             }
         }
 
-        IAsyncDocumentSession GetSession(ContextBag context)
+        async Task<IAsyncDocumentSession> GetSession(ContextBag context)
         {
             IncomingMessage message;
             if (context.TryGet(out message))
             {
-                return sessionCreator.OpenSession(message.Headers);
+                return await sessionCreator.OpenSession(message.Headers).ConfigureAwait(false);
             }
 
             return documentStore.OpenAsyncSession();

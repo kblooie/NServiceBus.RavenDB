@@ -85,9 +85,9 @@
                 this.store = store;
             }
 
-            public IAsyncDocumentSession OpenSession(IDictionary<string, string> messageHeaders)
+            public Task<IAsyncDocumentSession> OpenSession(IDictionary<string, string> messageHeaders)
             {
-                return store.OpenAsyncSession();
+                return Task.FromResult(store.OpenAsyncSession());
             }
         }
     }

@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Threading.Tasks;
     using NServiceBus.Configuration.AdvancedExtensibility;
     using NServiceBus.Persistence.RavenDB;
     using NServiceBus.Settings;
@@ -63,6 +64,18 @@
         /// <returns></returns>
         public static PersistenceExtensions<RavenDBPersistence> UseSharedAsyncSession(this PersistenceExtensions<RavenDBPersistence> cfg, Func<IDictionary<string, string>, IAsyncDocumentSession> getAsyncSessionFunc)
         {
+            return UseSharedAsyncSession(cfg, o => Task.FromResult(getAsyncSessionFunc(o)));
+        }
+
+        /// <summary>
+        ///     Specifies the async session that the shared persisters (saga + outbox) that should be used. The lifecycle is controlled by
+        ///     me
+        /// </summary>
+        /// <param name="cfg"></param>
+        /// <param name="getAsyncSessionFunc">An async func returning the async session to be used</param>
+        /// <returns></returns>
+        public static PersistenceExtensions<RavenDBPersistence> UseSharedAsyncSession(this PersistenceExtensions<RavenDBPersistence> cfg, Func<IDictionary<string, string>, Task<IAsyncDocumentSession>> getAsyncSessionFunc)
+        {
             if (getAsyncSessionFunc == null)
             {
                 throw new ArgumentNullException(nameof(getAsyncSessionFunc));
@@ -81,6 +94,20 @@
         /// </param>
         /// <returns>The configuration object.</returns>
         public static PersistenceExtensions<RavenDBPersistence> SetMessageToDatabaseMappingConvention(this PersistenceExtensions<RavenDBPersistence> cfg, Func<IDictionary<string,string>, string> convention)
+        {
+            return SetMessageToDatabaseMappingConvention(cfg, o => Task.FromResult(convention(o)));
+        }
+
+        /// <summary>
+        ///     Specifies the mapping to use for when resolving the database name to use for each message.
+        /// </summary>
+        /// <param name="cfg">The configuration object.</param>
+        /// <param name="convention">
+        ///     The async method referenced by a Func delegate for finding the database name for the specified
+        ///     message.
+        /// </param>
+        /// <returns>The configuration object.</returns>
+        public static PersistenceExtensions<RavenDBPersistence> SetMessageToDatabaseMappingConvention(this PersistenceExtensions<RavenDBPersistence> cfg, Func<IDictionary<string,string>, Task<string>> convention)
         {
             cfg.GetSettings().Set("RavenDB.SetMessageToDatabaseMappingConvention", convention);
             return cfg;

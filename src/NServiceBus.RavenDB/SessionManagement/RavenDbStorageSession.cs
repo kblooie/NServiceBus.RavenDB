@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Threading.Tasks;
     using NServiceBus.Features;
     using Raven.Client.Documents.Session;
 
@@ -15,7 +16,7 @@
             IOpenRavenSessionsInPipeline sessionCreator;
 
             // Check to see if the user provided us with a shared session to work with before we go and create our own to inject into the pipeline
-            var getAsyncSessionFunc = context.Settings.GetOrDefault<Func<IDictionary<string, string>, IAsyncDocumentSession>>(RavenDbSettingsExtensions.SharedAsyncSessionSettingsKey);
+            var getAsyncSessionFunc = context.Settings.GetOrDefault<Func<IDictionary<string, string>, Task<IAsyncDocumentSession>>>(RavenDbSettingsExtensions.SharedAsyncSessionSettingsKey);
 
             if (getAsyncSessionFunc != null)
             {
@@ -26,7 +27,7 @@
                 var store = DocumentStoreManager.GetDocumentStore<StorageType.Sagas>(context.Settings);
                 var storeWrapper = new DocumentStoreWrapper(store);
 
-                var dbNameConvention = context.Settings.GetOrDefault<Func<IDictionary<string, string>, string>>("RavenDB.SetMessageToDatabaseMappingConvention");
+                var dbNameConvention = context.Settings.GetOrDefault<Func<IDictionary<string, string>, Task<string>>>("RavenDB.SetMessageToDatabaseMappingConvention");
                 sessionCreator = new OpenRavenSessionByDatabaseName(storeWrapper, dbNameConvention);
             }
 
