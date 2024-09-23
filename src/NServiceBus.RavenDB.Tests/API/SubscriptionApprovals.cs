@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using NServiceBus.RavenDB.Persistence.SubscriptionStorage;
 using NServiceBus.Unicast.Subscriptions;
 using NUnit.Framework;
@@ -15,14 +14,14 @@ public class SubscriptionApprovals
         {
             Id = nameof(Subscription.Id),
             MessageType = new MessageType("System.Object", "4.0.0"),
-            Subscribers = new List<SubscriptionClient>
-            {
+            Subscribers =
+            [
                 new SubscriptionClient
                 {
                     Endpoint = nameof(SubscriptionClient.Endpoint),
                     TransportAddress = nameof(SubscriptionClient.TransportAddress),
                 },
-            },
+            ],
         });
     }
 }

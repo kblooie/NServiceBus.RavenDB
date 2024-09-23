@@ -1,11 +1,10 @@
 using System;
-using System.Collections.Generic;
 using NServiceBus.RavenDB.Outbox;
 using NUnit.Framework;
 using Particular.Approvals;
 
 [TestFixture]
-public class OutboxAprovals
+public class OutboxApprovals
 {
     [Test]
     public void ApproveOutboxSchema()
@@ -22,8 +21,8 @@ public class OutboxAprovals
                 {
                     MessageId = nameof(OutboxRecord.OutboxOperation.MessageId),
                     Message = Array.Empty<byte>(),
-                    Headers = new Dictionary<string, string>(),
-                    Options = new Dictionary<string, string>(),
+                    Headers = [],
+                    Options = [],
                 },
             },
         });

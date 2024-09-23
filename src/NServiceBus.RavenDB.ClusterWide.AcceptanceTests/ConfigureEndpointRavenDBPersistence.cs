@@ -66,7 +66,7 @@ public class ConfigureEndpointRavenDBPersistence : IConfigureEndpointTestExecuti
     {
         var dbRecord = new DatabaseRecord(dbName)
         {
-            Topology = new DatabaseTopology { Members = new List<string> { "A", "B", "C" } }
+            Topology = new DatabaseTopology { Members = ["A", "B", "C"] }
         };
 
         return defaultStore.Maintenance.Server.SendAsync(new CreateDatabaseOperation(dbRecord, 3), cancellationToken);
@@ -89,9 +89,7 @@ public class ConfigureEndpointRavenDBPersistence : IConfigureEndpointTestExecuti
                     break;
                 }
             }
-#pragma warning disable IDE0083
-            catch (Exception ex) when (!(ex is OperationCanceledException) || !cancellationToken.IsCancellationRequested)
-#pragma warning restore IDE0083
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 if (triesLeft == 0)
                 {
