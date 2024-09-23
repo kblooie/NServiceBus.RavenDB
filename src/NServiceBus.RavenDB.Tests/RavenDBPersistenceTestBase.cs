@@ -2,24 +2,35 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Threading;
     using System.Threading.Tasks;
-    using NServiceBus.Extensibility;
+    using Extensibility;
     using NServiceBus.Persistence.RavenDB;
-    using NServiceBus.Transport;
     using NUnit.Framework;
     using Raven.Client.Documents;
     using Raven.Client.Documents.Session;
+    using Transport;
 
-    public class RavenDBPersistenceTestBase
+    public abstract class RavenDBPersistenceTestBase
     {
+        IReusableDB db;
+
+        protected IDocumentStore store;
+        SessionOptions sessionOptions;
+
         [SetUp]
-        public virtual void SetUp()
+        public virtual async Task SetUp()
         {
             db = new ReusableDB();
-            var docStore = db.NewStore();
+            IDocumentStore docStore = db.NewStore();
             CustomizeDocumentStore(docStore);
             docStore.Initialize();
-            this.store = docStore;
+            await db.EnsureDatabaseExists(docStore);
+            store = docStore;
+            sessionOptions = new SessionOptions
+            {
+                TransactionMode = UseClusterWideTransactions ? TransactionMode.ClusterWide : TransactionMode.SingleNode
+            };
         }
 
         protected virtual void CustomizeDocumentStore(IDocumentStore docStore)
@@ -33,25 +44,26 @@
             db.Dispose();
         }
 
-        protected void WaitForIndexing()
-        {
-            db.WaitForIndexing(store);
-        }
+        protected Task WaitForIndexing(CancellationToken cancellationToken = default) =>
+            db.WaitForIndexing(store, cancellationToken);
 
-        protected static Task<Exception> Catch(Func<Task> action)
+        protected bool UseClusterWideTransactions => db.UseClusterWideTransactions;
+
+        protected SessionOptions GetSessionOptions()
         {
-            return Catch<Exception>(action);
+            return sessionOptions;
         }
 
         /// <summary>
         ///     This helper is necessary because RavenTestBase doesn't like Assert.Throws, Assert.That... with async void methods.
         /// </summary>
-        protected static async Task<TException> Catch<TException>(Func<Task> action) where TException : Exception
+        protected static async Task<TException> Catch<TException>(Func<CancellationToken, Task> action,
+            CancellationToken cancellationToken = default) where TException : Exception
         {
             try
             {
-                await action();
-                return default(TException);
+                await action(cancellationToken);
+                return default;
             }
             catch (TException ex)
             {
@@ -61,7 +73,11 @@
 
         protected IncomingMessage SimulateIncomingMessage(ContextBag context, string messageId = null)
         {
+#pragma warning disable IDE0079 // Remove unnecessary suppression
+#pragma warning disable IDE0054 // False positive
             messageId = messageId ?? Guid.NewGuid().ToString("N");
+#pragma warning restore IDE0054 // False positive
+#pragma warning restore IDE0079 // Remove unnecessary suppression
 
             var incomingMessage = new IncomingMessage(messageId, new Dictionary<string, string>(), new byte[0]);
 
@@ -70,27 +86,23 @@
             return incomingMessage;
         }
 
-        protected IDocumentStore store;
-        ReusableDB db;
-
-        internal IOpenTenantAwareRavenSessions CreateTestSessionOpener()
-        {
-            return new TestOpenSessionsInPipeline(this.store);
-        }
+        internal IOpenTenantAwareRavenSessions CreateTestSessionOpener() => new TestOpenSessionsInPipeline(store, UseClusterWideTransactions);
 
         class TestOpenSessionsInPipeline : IOpenTenantAwareRavenSessions
         {
-            IDocumentStore store;
+            readonly bool useClusterWideTx;
+            readonly IDocumentStore store;
 
-            public TestOpenSessionsInPipeline(IDocumentStore store)
+            public TestOpenSessionsInPipeline(IDocumentStore store, bool useClusterWideTx)
             {
                 this.store = store;
+                this.useClusterWideTx = useClusterWideTx;
             }
 
-            public IAsyncDocumentSession OpenSession(IDictionary<string, string> messageHeaders)
+            public IAsyncDocumentSession OpenSession(IDictionary<string, string> messageHeaders) => store.OpenAsyncSession(new SessionOptions
             {
-                return store.OpenAsyncSession();
-            }
+                TransactionMode = useClusterWideTx ? TransactionMode.ClusterWide : TransactionMode.SingleNode
+            });
         }
     }
 }

@@ -10,7 +10,7 @@ namespace NServiceBus.RavenDB.AcceptanceTests
     public class When_mixing_persistence_with_other_persistence_for_sagas_and_outbox : NServiceBusAcceptanceTest
     {
         [Test]
-        public async Task Should_work()
+        public async Task Should_not_interfere_with_synchronized_session()
         {
             var context = await Scenario.Define<Context>()
                 .WithEndpoint<EndpointWithMixedPersistence>(
@@ -35,8 +35,11 @@ namespace NServiceBus.RavenDB.AcceptanceTests
             {
                 EndpointSetup<DefaultServer>(config =>
                 {
-                    config.UsePersistence<InMemoryPersistence, StorageType.Sagas>();
-                    config.UsePersistence<InMemoryPersistence, StorageType.Outbox>();
+                    config.ConfigureTransport().TransportTransactionMode = TransportTransactionMode.ReceiveOnly;
+
+                    // RavenDB is configured by default, so we're adding the acceptancetestingpersistence mixed in
+                    config.UsePersistence<AcceptanceTestingPersistence, StorageType.Sagas>();
+                    config.UsePersistence<AcceptanceTestingPersistence, StorageType.Outbox>();
 
                     config.EnableOutbox();
                 });
@@ -45,20 +48,20 @@ namespace NServiceBus.RavenDB.AcceptanceTests
             public class MySaga : Saga<MySaga.MySagaData>,
                 IAmStartedByMessages<StartSaga>
             {
-                public Context TestContext { get; set; }
+                Context testContext;
+
+                public MySaga(Context testContext) => this.testContext = testContext;
 
                 public Task Handle(StartSaga message, IMessageHandlerContext context)
                 {
                     Data.DataId = message.DataId;
-                    TestContext.Done = true;
+                    testContext.Done = true;
 
                     return Task.CompletedTask;
                 }
 
-                protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MySagaData> mapper)
-                {
+                protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MySagaData> mapper) =>
                     mapper.ConfigureMapping<StartSaga>(m => m.DataId).ToSaga(s => s.DataId);
-                }
 
                 public class MySagaData : ContainSagaData
                 {

@@ -19,14 +19,15 @@
                     b.DoNotFailOnErrorMessages();
                     b.CustomConfig(cfg =>
                     {
+                        cfg.ConfigureTransport().TransportTransactionMode = TransportTransactionMode.ReceiveOnly;
                         cfg.EnableOutbox();
                         cfg.Recoverability().Immediate(x => x.NumberOfRetries(5));
                     });
-                    b.When((session, ctx) => session.SendLocal(new StartMsg {OrderId = "12345"}));
+                    b.When((session, ctx) => session.SendLocal(new StartMsg { OrderId = "12345" }));
 
                     var timeout = DateTime.UtcNow.AddSeconds(15);
 
-                    b.When(c => DateTime.UtcNow > timeout, (session, ctx) => session.SendLocal(new FinishMsg {OrderId = "12345"}));
+                    b.When(c => DateTime.UtcNow > timeout, (session, ctx) => session.SendLocal(new FinishMsg { OrderId = "12345" }));
                 })
                 .Done(c => c.SagaData != null)
                 .Run();
@@ -78,10 +79,10 @@
 
                 public Task Handle(ContinueMsg message, IMessageHandlerContext context)
                 {
-                    this.Data.ContinueCount++;
-                    this.Data.CollectedIndexes.Add(message.Index);
+                    Data.ContinueCount++;
+                    Data.CollectedIndexes.Add(message.Index);
 
-                    if (this.Data.ContinueCount == 3)
+                    if (Data.ContinueCount == 3)
                     {
                         return context.SendLocal(new FinishMsg { OrderId = message.OrderId });
                     }
@@ -91,8 +92,8 @@
 
                 public Task Handle(FinishMsg message, IMessageHandlerContext context)
                 {
-                    this.MarkAsComplete();
-                    testContext.SagaData = this.Data;
+                    MarkAsComplete();
+                    testContext.SagaData = Data;
                     return Task.CompletedTask;
                 }
             }

@@ -1,6 +1,7 @@
 ﻿namespace NServiceBus.Persistence.RavenDB
 {
     using System;
+    using Microsoft.Extensions.DependencyInjection;
     using NServiceBus.Features;
     using NServiceBus.Unicast.Subscriptions.MessageDrivenSubscriptions;
 
@@ -14,6 +15,7 @@
         {
             var doNotCacheSubscriptions = context.Settings.GetOrDefault<bool>(DoNotCacheSubscriptions);
             var cacheSubscriptionsFor = context.Settings.GetOrDefault<TimeSpan?>(CacheSubscriptionsFor) ?? TimeSpan.FromMinutes(1);
+            var useClusterWideTransactions = context.Settings.GetOrDefault<bool>(RavenDbStorageSession.UseClusterWideTransactions);
 
             context.Settings.AddStartupDiagnosticsSection(
                 "NServiceBus.Persistence.RavenDB.Subscriptions",
@@ -21,19 +23,19 @@
                 {
                     DoNotCacheSubscriptions = doNotCacheSubscriptions,
                     CacheSubscriptionsFor = cacheSubscriptionsFor,
+                    ClusterWideTransactions = useClusterWideTransactions ? "Enabled" : "Disabled"
                 });
 
-            context.Container.ConfigureComponent<ISubscriptionStorage>(builder =>
-                {
-                    var store = DocumentStoreManager.GetDocumentStore<StorageType.Subscriptions>(context.Settings, builder);
+            context.Services.AddSingleton<ISubscriptionStorage>(builder =>
+            {
+                var store = DocumentStoreManager.GetDocumentStore<StorageType.Subscriptions>(context.Settings, builder);
 
-                    return new SubscriptionPersister(store)
-                    {
-                        DisableAggressiveCaching = doNotCacheSubscriptions,
-                        AggressiveCacheDuration = cacheSubscriptionsFor,
-                    };
-                },
-                DependencyLifecycle.SingleInstance);
+                return new SubscriptionPersister(store, useClusterWideTransactions)
+                {
+                    DisableAggressiveCaching = doNotCacheSubscriptions,
+                    AggressiveCacheDuration = cacheSubscriptionsFor,
+                };
+            });
         }
 
         internal const string DoNotCacheSubscriptions = "RavenDB.DoNotAggressivelyCacheSubscriptions";

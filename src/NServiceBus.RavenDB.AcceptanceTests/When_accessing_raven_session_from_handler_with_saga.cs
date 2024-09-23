@@ -37,10 +37,7 @@
 
         public class RavenSessionExtensions : EndpointConfigurationBuilder
         {
-            public RavenSessionExtensions()
-            {
-                EndpointSetup<DefaultServer>();
-            }
+            public RavenSessionExtensions() => EndpointSetup<DefaultServer>();
 
             public class SessionExtensionSagaData : IContainSagaData
             {
@@ -59,19 +56,20 @@
 
             public class SessionExtensionGenericSaga : Saga<SessionExtensionSagaData>, IAmStartedByMessages<GenericMessage>
             {
-                public RavenSessionTestContext TestContext { get; set; }
+                RavenSessionTestContext testContext;
+
+                public SessionExtensionGenericSaga(RavenSessionTestContext testContext) =>
+                    this.testContext = testContext;
 
                 public Task Handle(GenericMessage message, IMessageHandlerContext context)
                 {
-                    TestContext.RavenSessionFromHandler = context.SynchronizedStorageSession.RavenSession();
-                    TestContext.HandlerWasHit = true;
+                    testContext.RavenSessionFromHandler = context.SynchronizedStorageSession.RavenSession();
+                    testContext.HandlerWasHit = true;
                     return Task.FromResult(0);
                 }
 
-                protected override void ConfigureHowToFindSaga(SagaPropertyMapper<SessionExtensionSagaData> mapper)
-                {
+                protected override void ConfigureHowToFindSaga(SagaPropertyMapper<SessionExtensionSagaData> mapper) =>
                     mapper.ConfigureMapping<GenericMessage>(m => m.Id).ToSaga(s => s.Id);
-                }
             }
 
             [Serializable]

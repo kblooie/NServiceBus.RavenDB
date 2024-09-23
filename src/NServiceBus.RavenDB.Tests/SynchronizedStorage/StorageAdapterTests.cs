@@ -13,11 +13,11 @@
         public async Task Should_use_existing_outbox_transaction()
         {
             var documentId = Guid.NewGuid().ToString("N");
-            var storageAdapter = new RavenDBSynchronizedStorageAdapter();
-            using (var outboxSession = store.OpenAsyncSession().UsingOptimisticConcurrency())
+            using (var outboxSession = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency())
             using (var ravenDBOutboxTransaction = new RavenDBOutboxTransaction(outboxSession))
-            using (var adaptedSession = await storageAdapter.TryAdapt(ravenDBOutboxTransaction, new ContextBag()))
+            using (var adaptedSession = new RavenDBSynchronizedStorageSession(CreateTestSessionOpener()))
             {
+                await adaptedSession.TryOpen(ravenDBOutboxTransaction, new ContextBag());
                 await adaptedSession.RavenSession().StoreAsync(new StorageAdapterTestDocument(), documentId);
 
                 Assert.AreSame(outboxSession, adaptedSession.RavenSession());
@@ -26,7 +26,7 @@
                 await ravenDBOutboxTransaction.Commit();
             }
 
-            using (var verificationSession = store.OpenAsyncSession().UsingOptimisticConcurrency())
+            using (var verificationSession = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency())
             {
                 var document = await verificationSession.LoadAsync<StorageAdapterTestDocument>(documentId);
                 Assert.IsNotNull(document);
@@ -38,11 +38,11 @@
         public async Task Should_roll_back_with_existing_outbox_transaction()
         {
             var documentId = Guid.NewGuid().ToString("N");
-            var storageAdapter = new RavenDBSynchronizedStorageAdapter();
-            using (var outboxSession = store.OpenAsyncSession().UsingOptimisticConcurrency())
+            using (var outboxSession = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency())
             using (var ravenDBOutboxTransaction = new RavenDBOutboxTransaction(outboxSession))
-            using (var adaptedSession = await storageAdapter.TryAdapt(ravenDBOutboxTransaction, new ContextBag()))
+            using (var adaptedSession = new RavenDBSynchronizedStorageSession(CreateTestSessionOpener()))
             {
+                await adaptedSession.TryOpen(ravenDBOutboxTransaction, new ContextBag());
                 await adaptedSession.RavenSession().StoreAsync(new StorageAdapterTestDocument(), documentId);
 
                 Assert.AreSame(outboxSession, adaptedSession.RavenSession());
@@ -50,7 +50,7 @@
                 //await ravenDBOutboxTransaction.Commit();
             }
 
-            using (var verificationSession = store.OpenAsyncSession().UsingOptimisticConcurrency())
+            using (var verificationSession = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency())
             {
                 var document = await verificationSession.LoadAsync<StorageAdapterTestDocument>(documentId);
                 Assert.IsNull(document);
@@ -61,11 +61,11 @@
         public async Task Should_roll_back_with_existing_outbox_transaction_after_adapted_session_completed()
         {
             var documentId = Guid.NewGuid().ToString("N");
-            var storageAdapter = new RavenDBSynchronizedStorageAdapter();
-            using (var outboxSession = store.OpenAsyncSession().UsingOptimisticConcurrency())
+            using (var outboxSession = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency())
             using (var ravenDBOutboxTransaction = new RavenDBOutboxTransaction(outboxSession))
-            using (var adaptedSession = await storageAdapter.TryAdapt(ravenDBOutboxTransaction, new ContextBag()))
+            using (var adaptedSession = new RavenDBSynchronizedStorageSession(CreateTestSessionOpener()))
             {
+                await adaptedSession.TryOpen(ravenDBOutboxTransaction, new ContextBag());
                 await adaptedSession.RavenSession().StoreAsync(new StorageAdapterTestDocument(), documentId);
 
                 Assert.AreSame(outboxSession, adaptedSession.RavenSession());
@@ -75,7 +75,7 @@
                 //await ravenDBOutboxTransaction.Commit();
             }
 
-            using (var verificationSession = store.OpenAsyncSession().UsingOptimisticConcurrency())
+            using (var verificationSession = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency())
             {
                 var document = await verificationSession.LoadAsync<StorageAdapterTestDocument>(documentId);
                 Assert.IsNull(document);

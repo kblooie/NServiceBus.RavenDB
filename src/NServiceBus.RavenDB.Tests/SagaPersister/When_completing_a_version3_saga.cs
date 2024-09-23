@@ -14,17 +14,16 @@ public class When_completing_a_version3_saga : RavenDBPersistenceTestBase
     public async Task Should_delete_the_unique_doc_properly()
     {
         var sagaId = Guid.NewGuid();
-
-        using (var session = store.OpenAsyncSession().UsingOptimisticConcurrency().InContext(out var options))
+        using (var session = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency().InContext(out var options))
         {
-            var persister = new SagaPersister();
+            var persister = new SagaPersister(new SagaPersistenceConfiguration(), UseClusterWideTransactions);
 
             var sagaEntity = new SagaData
             {
                 Id = sagaId,
                 SomeId = Guid.NewGuid()
             };
-            var synchronizedSession = new RavenDBSynchronizedStorageSession(session);
+            var synchronizedSession = await session.CreateSynchronizedSession(options);
 
             await persister.Save(sagaEntity, this.CreateMetadata<SomeSaga>(sagaEntity), synchronizedSession, options);
 

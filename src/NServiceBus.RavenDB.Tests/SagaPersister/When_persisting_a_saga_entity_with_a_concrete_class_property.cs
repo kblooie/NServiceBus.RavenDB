@@ -21,10 +21,10 @@ public class When_persisting_a_saga_entity_with_a_concrete_class_property : Rave
             }
         };
 
-        using (var session = store.OpenAsyncSession().UsingOptimisticConcurrency().InContext(out var options))
+        using (var session = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency().InContext(out var options))
         {
-            var persister = new SagaPersister();
-            var synchronizedSession = new RavenDBSynchronizedStorageSession(session);
+            var persister = new SagaPersister(new SagaPersistenceConfiguration(), UseClusterWideTransactions);
+            var synchronizedSession = await session.CreateSynchronizedSession(options);
 
             await persister.Save(entity, this.CreateMetadata<SomeSaga>(entity), synchronizedSession, options);
             await session.SaveChangesAsync().ConfigureAwait(false);
@@ -61,7 +61,6 @@ public class When_persisting_a_saga_entity_with_a_concrete_class_property : Rave
     class TestComponent
     {
         public string Property { get; set; }
-        // ReSharper disable once UnusedAutoPropertyAccessor.Local
         public string AnotherProperty { get; set; }
     }
 }

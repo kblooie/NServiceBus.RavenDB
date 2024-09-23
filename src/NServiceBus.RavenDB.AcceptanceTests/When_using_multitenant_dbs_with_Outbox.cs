@@ -29,21 +29,43 @@
         {
             await RunTest(cfg =>
             {
-                cfg.PersistenceExtensions.UseSharedAsyncSession(headers => cfg.DefaultStore.OpenAsyncSession(headers["RavenDatabaseName"]));
+                cfg.PersistenceExtensions.UseSharedAsyncSession(headers =>
+                {
+                    var useClusterWideTx = cfg.PersistenceExtensions.GetSettings().GetOrDefault<bool>("NServiceBus.Persistence.RavenDB.EnableClusterWideTransactions");
+                    var sessionOptions = new SessionOptions
+                    {
+                        Database = headers["RavenDatabaseName"],
+                        TransactionMode =
+                            useClusterWideTx ? TransactionMode.ClusterWide : TransactionMode.SingleNode
+                    };
+                    return cfg.DefaultStore.OpenAsyncSession(sessionOptions);
+                });
             });
         }
 
         async Task RunTest(Action<ContextDbConfig> configureMultiTenant)
         {
+            string tenantOneDbName = "Tenant1-" + Guid.NewGuid().ToString("N").Substring(16);
+            string tenantTwoDbName = "Tenant2-" + Guid.NewGuid().ToString("N").Substring(16);
+
+            using (var tenantOneStore = ConfigureEndpointRavenDBPersistence.GetInitializedDocumentStore(tenantOneDbName))
+            using (var tenantTwoStore = ConfigureEndpointRavenDBPersistence.GetInitializedDocumentStore(tenantTwoDbName))
+            {
+                await ConfigureEndpointRavenDBPersistence.CreateDatabase(tenantOneStore, tenantOneDbName);
+                await ConfigureEndpointRavenDBPersistence.CreateDatabase(tenantTwoStore, tenantTwoDbName);
+            }
+
             var context = await Scenario.Define<Context>(c =>
                 {
-                    c.Db1 = "Tenant1-" + Guid.NewGuid().ToString("n").Substring(16);
-                    c.Db2 = "Tenant2-" + Guid.NewGuid().ToString("n").Substring(16);
+                    c.Db1 = tenantOneDbName;
+                    c.Db2 = tenantTwoDbName;
                 })
                 .WithEndpoint<MultiTenantEndpoint>(b =>
                 {
                     b.CustomConfig((cfg, c) =>
                     {
+                        cfg.ConfigureTransport().TransportTransactionMode = TransportTransactionMode.ReceiveOnly;
+
                         cfg.EnableOutbox();
                         cfg.LimitMessageProcessingConcurrencyTo(1);
                         cfg.Pipeline.Register(new MessageCountingBehavior(c), "Counts all messages processed");
@@ -53,9 +75,6 @@
                         var defaultStore = ConfigureEndpointRavenDBPersistence.GetDefaultDocumentStore(settings);
                         c.DefaultDb = defaultStore.Database;
                         c.DbConfig.DefaultStore = defaultStore;
-
-                        ConfigureEndpointRavenDBPersistence.CreateDatabase(defaultStore, c.Db1);
-                        ConfigureEndpointRavenDBPersistence.CreateDatabase(defaultStore, c.Db2);
 
                         c.DbConfig.PersistenceExtensions = ConfigureEndpointRavenDBPersistence.GetDefaultPersistenceExtensions(settings);
                         configureMultiTenant(c.DbConfig);
@@ -105,7 +124,7 @@
             public string Db1 { get; set; }
             public string Db2 { get; set; }
             public List<string> ObservedDbs { get; } = new List<string>();
-            public string ObservedDbsOutput => String.Join(", ", ObservedDbs);
+            public string ObservedDbsOutput => string.Join(", ", ObservedDbs);
             public ContextDbConfig DbConfig { get; } = new ContextDbConfig();
             public int MessagesObserved;
         }
@@ -120,10 +139,7 @@
 
         public class MultiTenantEndpoint : EndpointConfigurationBuilder
         {
-            public MultiTenantEndpoint()
-            {
-                EndpointSetup<DefaultServer>();
-            }
+            public MultiTenantEndpoint() => EndpointSetup<DefaultServer>();
 
             public class MTSaga : Saga<MTSagaData>,
                 IAmStartedByMessages<TestMsg>
@@ -135,10 +151,8 @@
                     this.testCtx = testCtx;
                 }
 
-                protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MTSagaData> mapper)
-                {
+                protected override void ConfigureHowToFindSaga(SagaPropertyMapper<MTSagaData> mapper) =>
                     mapper.ConfigureMapping<TestMsg>(m => m.OrderId).ToSaga(s => s.OrderId);
-                }
 
                 public Task Handle(TestMsg message, IMessageHandlerContext context)
                 {
@@ -149,7 +163,7 @@
                         testCtx.ObservedDbs.Add(dbName);
                     }
                     Interlocked.Increment(ref testCtx.MessagesReceived);
-                    return Task.FromResult(0);
+                    return Task.CompletedTask;
                 }
             }
 
@@ -168,10 +182,7 @@
         {
             Context testContext;
 
-            public MessageCountingBehavior(Context testContext)
-            {
-                this.testContext = testContext;
-            }
+            public MessageCountingBehavior(Context testContext) => this.testContext = testContext;
 
             public async Task Invoke(ITransportReceiveContext context, Func<ITransportReceiveContext, Task> next)
             {

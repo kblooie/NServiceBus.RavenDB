@@ -1,0 +1,12 @@
+<Project>
+
+  <PropertyGroup>
+    <MinVerMinimumMajorMinor>8.2</MinVerMinimumMajorMinor>
+    <MinVerAutoIncrement>patch</MinVerAutoIncrement>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <WriteMinVerProperties>false</WriteMinVerProperties>
+  </PropertyGroup>
+
+</Project>

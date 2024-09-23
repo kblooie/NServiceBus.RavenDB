@@ -1,10 +1,11 @@
 ﻿namespace NServiceBus.Persistence.RavenDB
 {
+    using System.Threading;
     using System.Threading.Tasks;
     using NServiceBus.Outbox;
     using Raven.Client.Documents.Session;
 
-    class RavenDBOutboxTransaction : OutboxTransaction
+    class RavenDBOutboxTransaction : IOutboxTransaction
     {
         public RavenDBOutboxTransaction(IAsyncDocumentSession session)
         {
@@ -19,9 +20,9 @@
             AsyncSession = null;
         }
 
-        public Task Commit()
+        public Task Commit(CancellationToken cancellationToken = default)
         {
-            return AsyncSession.SaveChangesAsync();
+            return AsyncSession.SaveChangesAsync(cancellationToken);
         }
     }
 }

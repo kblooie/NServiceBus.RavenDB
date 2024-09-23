@@ -12,7 +12,7 @@ public class When_listing_subscribers_for_message_types : RavenDBPersistenceTest
     [Test]
     public async Task The_names_of_all_subscribers_should_be_returned()
     {
-        var storage = new SubscriptionPersister(store);
+        var storage = new SubscriptionPersister(store, UseClusterWideTransactions);
         var context = new ContextBag();
 
         await storage.Subscribe(TestClients.ClientA, MessageTypes.MessageA, context);
@@ -20,7 +20,7 @@ public class When_listing_subscribers_for_message_types : RavenDBPersistenceTest
         await storage.Subscribe(TestClients.ClientB, MessageTypes.MessageA, context);
         await storage.Subscribe(TestClients.ClientA, MessageTypes.MessageAv2, context);
 
-        var subscriptionsForMessageType = await storage.GetSubscriberAddressesForMessage(new []{ MessageTypes.MessageA }, context);
+        var subscriptionsForMessageType = await storage.GetSubscriberAddressesForMessage(new[] { MessageTypes.MessageA }, context);
 
         Assert.AreEqual(2, subscriptionsForMessageType.Count());
 
@@ -34,7 +34,7 @@ public class When_listing_subscribers_for_message_types : RavenDBPersistenceTest
     [Test]
     public async Task Duplicates_should_not_be_generated_for_interface_inheritance_chains()
     {
-        var storage = new SubscriptionPersister(store);
+        var storage = new SubscriptionPersister(store, UseClusterWideTransactions);
         var context = new ContextBag();
 
         await storage.Subscribe(TestClients.ClientA, new MessageType(typeof(ISomeInterface)), context);

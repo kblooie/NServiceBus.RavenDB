@@ -2,7 +2,6 @@
 {
     using System;
     using System.Collections.Generic;
-    using NServiceBus.ObjectBuilder;
     using NServiceBus.Settings;
     using Raven.Client.Documents;
 
@@ -15,7 +14,6 @@
                 {typeof(StorageType.Subscriptions), "RavenDbDocumentStore/Subscription"},
                 {typeof(StorageType.Outbox), "RavenDbDocumentStore/Outbox"},
                 {typeof(StorageType.Sagas), "RavenDbDocumentStore/Saga"},
-                {typeof(StorageType.Timeouts), "RavenDbDocumentStore/Timeouts"}
             };
         }
 
@@ -29,7 +27,7 @@
             SetDocumentStoreInternal(settings, typeof(TStorageType), (_, __) => documentStore);
         }
 
-        public static void SetDocumentStore<TStorageType>(SettingsHolder settings, Func<ReadOnlySettings, IDocumentStore> storeCreator)
+        public static void SetDocumentStore<TStorageType>(SettingsHolder settings, Func<IReadOnlySettings, IDocumentStore> storeCreator)
             where TStorageType : StorageType
         {
             if (storeCreator == null)
@@ -40,7 +38,7 @@
             SetDocumentStoreInternal(settings, typeof(TStorageType), (s, _) => storeCreator(s));
         }
 
-        public static void SetDocumentStore<TStorageType>(SettingsHolder settings, Func<ReadOnlySettings, IBuilder, IDocumentStore> storeCreator)
+        public static void SetDocumentStore<TStorageType>(SettingsHolder settings, Func<IReadOnlySettings, IServiceProvider, IDocumentStore> storeCreator)
             where TStorageType : StorageType
         {
             if (storeCreator == null)
@@ -51,7 +49,7 @@
             SetDocumentStoreInternal(settings, typeof(TStorageType), storeCreator);
         }
 
-        static void SetDocumentStoreInternal(SettingsHolder settings, Type storageType, Func<ReadOnlySettings, IBuilder, IDocumentStore> storeCreator)
+        static void SetDocumentStoreInternal(SettingsHolder settings, Type storageType, Func<IReadOnlySettings, IServiceProvider, IDocumentStore> storeCreator)
         {
             var initContext = new DocumentStoreInitializer(storeCreator);
             settings.Set(featureSettingsKeys[storageType], initContext);
@@ -67,7 +65,7 @@
             SetDefaultStoreInternal(settings, (_, __) => documentStore);
         }
 
-        public static void SetDefaultStore(SettingsHolder settings, Func<ReadOnlySettings, IDocumentStore> storeCreator)
+        public static void SetDefaultStore(SettingsHolder settings, Func<IReadOnlySettings, IDocumentStore> storeCreator)
         {
             if (storeCreator == null)
             {
@@ -77,7 +75,7 @@
             SetDefaultStoreInternal(settings, (s, _) => storeCreator(s));
         }
 
-        public static void SetDefaultStore(SettingsHolder settings, Func<ReadOnlySettings, IBuilder, IDocumentStore> storeCreator)
+        public static void SetDefaultStore(SettingsHolder settings, Func<IReadOnlySettings, IServiceProvider, IDocumentStore> storeCreator)
         {
             if (storeCreator == null)
             {
@@ -87,29 +85,26 @@
             SetDefaultStoreInternal(settings, storeCreator);
         }
 
-        static void SetDefaultStoreInternal(SettingsHolder settings, Func<ReadOnlySettings, IBuilder, IDocumentStore> storeCreator)
+        static void SetDefaultStoreInternal(SettingsHolder settings, Func<IReadOnlySettings, IServiceProvider, IDocumentStore> storeCreator)
         {
             var initContext = new DocumentStoreInitializer(storeCreator);
             settings.Set(defaultDocStoreSettingsKey, initContext);
         }
 
-        public static IDocumentStore GetDocumentStore<TStorageType>(ReadOnlySettings settings, IBuilder builder)
+        public static IDocumentStore GetDocumentStore<TStorageType>(IReadOnlySettings settings, IServiceProvider builder)
             where TStorageType : StorageType
         {
             return GetUninitializedDocumentStore<TStorageType>(settings).Init(settings, builder);
         }
 
-        internal static DocumentStoreInitializer GetUninitializedDocumentStore<TStorageType>(ReadOnlySettings settings)
+        internal static DocumentStoreInitializer GetUninitializedDocumentStore<TStorageType>(IReadOnlySettings settings)
             where TStorageType : StorageType
         {
             // First try to get a document store specific to a storage type (Subscriptions, Gateway, etc.)
             var docStoreInitializer = settings.GetOrDefault<DocumentStoreInitializer>(featureSettingsKeys[typeof(TStorageType)]);
 
-            // Next try finding a shared DocumentStore
-            if (docStoreInitializer == null)
-            {
-                docStoreInitializer = settings.GetOrDefault<DocumentStoreInitializer>(defaultDocStoreSettingsKey);
-            }
+            // Next try finding a shared DocumentStore                    
+            docStoreInitializer ??= settings.GetOrDefault<DocumentStoreInitializer>(defaultDocStoreSettingsKey);
 
             if (docStoreInitializer == null)
             {

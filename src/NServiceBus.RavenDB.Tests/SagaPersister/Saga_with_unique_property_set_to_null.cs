@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 using NServiceBus;
+using NServiceBus.Extensibility;
 using NServiceBus.Persistence.RavenDB;
 using NServiceBus.RavenDB.Tests;
 using NUnit.Framework;
@@ -9,7 +10,7 @@ using NUnit.Framework;
 public class Saga_with_unique_property_set_to_null : RavenDBPersistenceTestBase
 {
     [Test]
-    public async Task should_throw_a_ArgumentNullException()
+    public async Task Should_throw_a_ArgumentNullException()
     {
         var saga1 = new SagaData
         {
@@ -17,15 +18,15 @@ public class Saga_with_unique_property_set_to_null : RavenDBPersistenceTestBase
             UniqueString = null
         };
 
-        using (var session = store.OpenAsyncSession().UsingOptimisticConcurrency().InContext(out var context))
+        using (var session = store.OpenAsyncSession(GetSessionOptions()).UsingOptimisticConcurrency().InContext(out var context))
         {
-            var ravenSession = new RavenDBSynchronizedStorageSession(session);
-            var persister = new SagaPersister();
+            var ravenSession = await session.CreateSynchronizedSession(new ContextBag());
+            var persister = new SagaPersister(new SagaPersistenceConfiguration(), UseClusterWideTransactions);
 
-            var exception = await Catch<ArgumentNullException>(async () =>
+            var exception = await Catch<ArgumentNullException>(async cancellationToken =>
             {
-                await persister.Save(saga1, this.CreateMetadata<SomeSaga>(saga1), ravenSession, context);
-                await session.SaveChangesAsync().ConfigureAwait(false);
+                await persister.Save(saga1, this.CreateMetadata<SomeSaga>(saga1), ravenSession, context, cancellationToken);
+                await session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             });
 
             Assert.IsNotNull(exception);
@@ -47,7 +48,6 @@ public class Saga_with_unique_property_set_to_null : RavenDBPersistenceTestBase
 
     class SagaData : IContainSagaData
     {
-        // ReSharper disable once UnusedAutoPropertyAccessor.Local
         public string UniqueString { get; set; }
         public Guid Id { get; set; }
         public string Originator { get; set; }

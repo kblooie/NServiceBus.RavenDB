@@ -2,17 +2,18 @@
 {
     using System;
     using System.Collections.Generic;
+    using Logging;
     using NServiceBus.ConsistencyGuarantees;
-    using NServiceBus.ObjectBuilder;
     using NServiceBus.Settings;
     using Raven.Client.Documents;
     using Raven.Client.Documents.Indexes;
     using Raven.Client.Documents.Operations.Indexes;
     using Raven.Client.ServerWide.Commands;
+    using Raven.Client.ServerWide.Operations;
 
     class DocumentStoreInitializer
     {
-        internal DocumentStoreInitializer(Func<ReadOnlySettings, IBuilder, IDocumentStore> storeCreator)
+        internal DocumentStoreInitializer(Func<IReadOnlySettings, IServiceProvider, IDocumentStore> storeCreator)
         {
             this.storeCreator = storeCreator;
         }
@@ -55,7 +56,7 @@
             }
         }
 
-        internal IDocumentStore Init(ReadOnlySettings settings, IBuilder builder)
+        internal IDocumentStore Init(IReadOnlySettings settings, IServiceProvider builder)
         {
             if (!isInitialized)
             {
@@ -63,7 +64,9 @@
                 ApplyConventions(settings);
 
                 docStore.Initialize();
-                EnsureClusterConfiguration(docStore, settings);
+                EnsureCompatibleServerVersion(docStore);
+                var useClusterWideTx = settings.GetOrDefault<bool>(RavenDbStorageSession.UseClusterWideTransactions);
+                EnsureClusterConfiguration(docStore, useClusterWideTx);
 
                 CreateIndexes(docStore);
             }
@@ -72,17 +75,21 @@
             return docStore;
         }
 
-        void EnsureDocStoreCreated(ReadOnlySettings settings, IBuilder builder)
+        void EnsureCompatibleServerVersion(IDocumentStore documentStore)
         {
-            if (docStore == null)
-            {
-                docStore = storeCreator(settings, builder);
-            }
+            var serverVersion = documentStore.Maintenance.Server.Send(new GetBuildNumberOperation());
+
+            MinimumRequiredRavenDbServerVersion.Validate(serverVersion.FullVersion);
         }
 
-        void ApplyConventions(ReadOnlySettings settings)
+        void EnsureDocStoreCreated(IReadOnlySettings settings, IServiceProvider builder)
         {
-            if (!(docStore is DocumentStore store))
+            docStore ??= storeCreator(settings, builder);
+        }
+
+        void ApplyConventions(IReadOnlySettings settings)
+        {
+            if (docStore is not DocumentStore store)
             {
                 return;
             }
@@ -102,32 +109,30 @@
             }
         }
 
-        static void EnsureClusterConfiguration(IDocumentStore store, ReadOnlySettings settings)
+        static void EnsureClusterConfiguration(IDocumentStore store, bool useClusterWideTransactions)
         {
-            var skip = settings.GetOrDefault<bool>(DoNotEnsureClusterConfiguration);
-            if (skip) 
-                return;
-
             using (var s = store.OpenSession())
             {
-                var getTopologyCmd = new GetClusterTopologyCommand();
-                s.Advanced.RequestExecutor.Execute(getTopologyCmd, s.Advanced.Context);
+                var databaseTopology = new GetDatabaseTopologyCommand();
+                s.Advanced.RequestExecutor.Execute(databaseTopology, s.Advanced.Context);
+                var clusterTopology = new GetClusterTopologyCommand();
+                s.Advanced.RequestExecutor.Execute(clusterTopology, s.Advanced.Context);
 
-                var topology = getTopologyCmd.Result.Topology;
-
-                // Currently do not support clusters with more than one possible primary member. Watchers (passive replication targets) are OK.
-                if (topology.Members.Count != 1)
+                if (useClusterWideTransactions && databaseTopology.Result.Nodes.Count == 1 && clusterTopology.Result.Topology.AllNodes.Count > 1)
                 {
-                    throw new InvalidOperationException("RavenDB Persistence does not support RavenDB clusters with more than one Leader/Member node. Only clusters with a single Leader and (optionally) Watcher nodes are supported.");
+                    Logger.Warn($"The replication factor of the configured database is 1, while more nodes were detected in the cluster. If the intent is to keep the replication factor as configured, do not enable {nameof(RavenDbSettingsExtensions.EnableClusterWideTransactions)} on the persistence configuration since it comes with performance implications.");
+                }
+                else if (!useClusterWideTransactions && databaseTopology.Result.Nodes.Count > 1)
+                {
+                    throw new Exception($"The configured database is replicated across multiple nodes, in order to continue, use {nameof(RavenDbSettingsExtensions.EnableClusterWideTransactions)} on the persistence configuration.");
                 }
             }
         }
 
         List<AbstractIndexCreationTask> indexesToCreate = new List<AbstractIndexCreationTask>();
-        Func<ReadOnlySettings, IBuilder, IDocumentStore> storeCreator;
+        Func<IReadOnlySettings, IServiceProvider, IDocumentStore> storeCreator;
         IDocumentStore docStore;
         bool isInitialized;
-
-        internal const string DoNotEnsureClusterConfiguration = "RavenDB.DoNotEnsureClusterConfiguration";
+        static readonly ILog Logger = LogManager.GetLogger(typeof(DocumentStoreInitializer));
     }
 }

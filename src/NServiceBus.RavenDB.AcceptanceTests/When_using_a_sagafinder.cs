@@ -1,6 +1,7 @@
 ﻿namespace NServiceBus.RavenDB.AcceptanceTests
 {
     using System;
+    using System.Threading;
     using System.Threading.Tasks;
     using NServiceBus.AcceptanceTesting;
     using NServiceBus.AcceptanceTests;
@@ -17,12 +18,12 @@
         {
             var exception = Assert.ThrowsAsync<Exception>(async () =>
             {
-               await Scenario.Define<Context>()
-                    .WithEndpoint<SagaFinderEndpoint>(b => b
-                        .When(bus => bus.SendLocal(new StartSagaMessage()))
-                        .When(c => c.SagaId != Guid.Empty, bus => bus.SendLocal(new StartSagaMessage())))
-                    .Done(c => c.SecondMessageProcessed)
-                    .Run();
+                await Scenario.Define<Context>()
+                     .WithEndpoint<SagaFinderEndpoint>(b => b
+                         .When(bus => bus.SendLocal(new StartSagaMessage()))
+                         .When(c => c.SagaId != Guid.Empty, bus => bus.SendLocal(new StartSagaMessage())))
+                     .Done(c => c.SecondMessageProcessed)
+                     .Run();
             });
 
             Assert.IsTrue(exception.Message.Contains("does not support custom saga finders"), "Exception message did not contain expected phrase");
@@ -44,18 +45,18 @@
             }
 
 
-            class MySagaFinder : IFindSagas<SagaFinderSagaData>.Using<StartSagaMessage>
+            class MySagaFinder : ISagaFinder<SagaFinderSagaData, StartSagaMessage>
             {
                 public Context Context { get; set; }
 
-                public Task<SagaFinderSagaData> FindBy(StartSagaMessage message, SynchronizedStorageSession session, ReadOnlyContextBag options)
+                public Task<SagaFinderSagaData> FindBy(StartSagaMessage message, ISynchronizedStorageSession session, IReadOnlyContextBag options, CancellationToken cancellationToken = default)
                 {
                     if (Context.SagaId == Guid.Empty)
                     {
                         return Task.FromResult(default(SagaFinderSagaData));
                     }
 
-                    return session.RavenSession().LoadAsync<SagaFinderSagaData>(Context.SagaId.ToString());
+                    return session.RavenSession().LoadAsync<SagaFinderSagaData>(Context.SagaId.ToString(), cancellationToken);
                 }
             }
 

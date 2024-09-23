@@ -42,19 +42,21 @@
             {
                 EndpointSetup<DefaultServer>((config, context) =>
                 {
-                    config.GetSettings().Set("DisableOutboxTransportCheck", true);
+                    config.ConfigureTransport().TransportTransactionMode = TransportTransactionMode.ReceiveOnly;
                     config.EnableOutbox();
                 });
             }
 
             public class GenericMessageHandler : IHandleMessages<GenericMessage>
             {
-                public RavenSessionTestContext TestContext { get; set; }
+                RavenSessionTestContext testContext;
+
+                public GenericMessageHandler(RavenSessionTestContext testContext) => this.testContext = testContext;
 
                 public Task Handle(GenericMessage message, IMessageHandlerContext context)
                 {
-                    TestContext.RavenSessionFromHandler = context.SynchronizedStorageSession.RavenSession();
-                    TestContext.HandlerWasHit = true;
+                    testContext.RavenSessionFromHandler = context.SynchronizedStorageSession.RavenSession();
+                    testContext.HandlerWasHit = true;
                     return Task.FromResult(0);
                 }
             }
