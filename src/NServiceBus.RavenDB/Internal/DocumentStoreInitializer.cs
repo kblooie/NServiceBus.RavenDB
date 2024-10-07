@@ -66,7 +66,7 @@
                 docStore.Initialize();
                 EnsureCompatibleServerVersion(docStore);
                 var useClusterWideTx = settings.GetOrDefault<bool>(RavenDbStorageSession.UseClusterWideTransactions);
-                EnsureClusterConfiguration(docStore, useClusterWideTx);
+                EnsureClusterConfiguration(docStore, useClusterWideTx, settings);
 
                 CreateIndexes(docStore);
             }
@@ -109,8 +109,14 @@
             }
         }
 
-        static void EnsureClusterConfiguration(IDocumentStore store, bool useClusterWideTransactions)
+        static void EnsureClusterConfiguration(IDocumentStore store, bool useClusterWideTransactions, IReadOnlySettings settings)
         {
+            var skip = settings.GetOrDefault<bool>(DoNotEnsureClusterConfiguration);
+            if (skip)
+            {
+                return;
+            }
+
             using (var s = store.OpenSession())
             {
                 var databaseTopology = new GetDatabaseTopologyCommand();
@@ -134,5 +140,6 @@
         IDocumentStore docStore;
         bool isInitialized;
         static readonly ILog Logger = LogManager.GetLogger(typeof(DocumentStoreInitializer));
+        internal const string DoNotEnsureClusterConfiguration = "RavenDB.DoNotEnsureClusterConfiguration";
     }
 }
